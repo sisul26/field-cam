@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>현장 점검 타임마크</title>
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 15px; background: #1e1e1e; color: #fff; }
+    h2 { margin-top: 0; font-size: 18px; color: #4CAF50; }
+    .form-group { margin-bottom: 10px; }
+    label { display: block; font-size: 13px; color: #bbb; margin-bottom: 4px; }
+    input, select { width: 100%; padding: 10px; box-sizing: border-box; border-radius: 6px; border: 1px solid #444; background: #2c2c2c; color: #fff; font-size: 15px; }
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    button { flex: 1; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+    .btn-gps { background: #2196F3; color: white; }
+    .btn-cam { background: #4CAF50; color: white; }
+    #status { font-size: 13px; color: #ffeb3b; margin: 10px 0; line-height: 1.5; }
+    canvas { width: 100%; margin-top: 15px; border-radius: 8px; border: 1px solid #555; display: none; }
+    .btn-save { background: #ff9800; color: #000; width: 100%; margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+
+  <h2>📷 현장 조사 기록기</h2>
+
+  <div id="status">⏳ GPS 위치 및 주소를 불러오는 중...</div>
+
+  <div class="form-group">
+    <label>세부위치 (사업소 / 관로 / 맨홀 등)</label>
+    <input type="text" id="detailLoc" placeholder="예: 신천사업소 차집관로 3번 맨홀">
+  </div>
+
+  <div class="form-group">
+    <label>점검 내용</label>
+    <input type="text" id="content" placeholder="예: 맨홀 내부 퇴적물 상태 양호">
+  </div>
+
+  <div class="form-group">
+    <label>점검자</label>
+    <input type="text" id="inspector" value="김민석">
+  </div>
+
+  <div class="btn-group">
+    <button class="btn-gps" onclick="getLocation()">🔄 GPS 재검색</button>
+    <button class="btn-cam" onclick="document.getElementById('cameraInput').click()">📸 사진 촬영</button>
+  </div>
+
+  <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="processImage(event)">
+
+  <canvas id="canvas"></canvas>
+  <button id="saveBtn" class="btn-save" onclick="downloadImage()">💾 갤러리에 사진 저장</button>
+
+  <script>
+    const VWORLD_KEY = "8C6FFDBC-080D-441A-B2FD-3FA46A1D5588";
+    let currentLat = "측정중";
+    let currentLng = "측정중";
+    let currentAddress = "주소 변환 대기중...";
+
+    window.onload = getLocation;
+
+    function getLocation() {
+      const statusEl = document.getElementById('status');
+      statusEl.innerText = "⏳ GPS 수신 중... (실외에서 정확도가 높습니다)";
+
+      if (!navigator.geolocation) {
+        statusEl.innerText = "❌ 이 브라우저는 GPS를 지원하지 않습니다.";
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          currentLat = pos.coords.latitude.toFixed(6);
+          currentLng = pos.coords.longitude.toFixed(6);
+          const acc = Math.round(pos.coords.accuracy);
+          statusEl.innerText = `✅ GPS 수신 완료 (오차범위: 약 ${acc}m)`;
+          getAddress(currentLng, currentLat);
+        },
+        (err) => {
+          statusEl.innerText = "❌ GPS 수신 실패. 위치 권한을 허용해주세요.";
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    function getAddress(lng, lat) {
+      const script = document.createElement('script');
+      const callbackName = 'vworldCallback_' + Math.floor(Math.random() * 100000);
+      
+      window[callbackName] = function(data) {
+        if (data.response && data.response.status === "OK") {
+          const result = data.response.result[0];
+          currentAddress = result.text;
+        } else {
+          currentAddress = "주소 변환 실패 (좌표만 기록됨)";
+        }
+        document.getElementById('status').innerText += `\n📍 ${currentAddress}`;
+        delete window[callbackName];
+        document.body.removeChild(script);
+      };
+
+      script.src = `https://api.vworld.kr/req/address?service=address&request=getAddress&version=2.0&crs=epsg:4326&point=${lng},${lat}&format=json&type=both&zipcode=false&simple=false&key=${VWORLD_KEY}&callback=${callbackName}`;
+      document.body.appendChild(script);
+    }
+
+    function getFormattedDate() {
+      const now = new Date();
+      const pad = (n) => n.toString().padStart(2, '0');
+      return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    }
+
+    function processImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.getElementById('canvas');
+          const ctx = canvas.getContext('2d');
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const boxWidth = canvas.width * 0.94;
+          const fontSize = Math.max(24, Math.floor(canvas.width * 0.028));
+          const lineHeight = fontSize * 1.45;
+          const padding = fontSize * 0.8;
+          
+          const lines = [
+            `일시 : ${getFormattedDate()}`,
+            `좌표 : ${currentLat}, ${currentLng}`,
+            `주소 : ${currentAddress}`,
+            `위치 : ${document.getElementById('detailLoc').value || '-'}`,
+            `내용 : ${document.getElementById('content').value || '-'}`,
+            `점검 : ${document.getElementById('inspector').value || '-'}`
+          ];
+
+          const boxHeight = (lines.length * lineHeight) + (padding * 1.5);
+          const startX = canvas.width * 0.03;
+          const startY = canvas.height - boxHeight - (canvas.width * 0.03);
+
+          ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+          ctx.fillRect(startX, startY, boxWidth, boxHeight);
+
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+          ctx.lineWidth = Math.max(2, canvas.width * 0.002);
+          ctx.strokeRect(startX, startY, boxWidth, boxHeight);
+
+          ctx.fillStyle = "#FFFFFF";
+          ctx.font = `bold ${fontSize}px 'Malgun Gothic', sans-serif`;
+          lines.forEach((line, index) => {
+            ctx.fillText(line, startX + padding, startY + padding + (fontSize * 0.8) + (index * lineHeight));
+          });
+
+          canvas.style.display = "block";
+          document.getElementById('saveBtn').style.display = "block";
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function downloadImage() {
+      const canvas = document.getElementById('canvas');
+      const link = document.createElement('a');
+      
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+      const loc = document.getElementById('detailLoc').value.trim().replace(/\s+/g, '_') || '현장';
+      const content = document.getElementById('content').value.trim().replace(/\s+/g, '_') || '점검';
+
+      link.download = `${dateStr}_${loc}_${content}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.9);
+      link.click();
+    }
+  </script>
+</body>
+</html>
