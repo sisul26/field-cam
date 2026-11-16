@@ -148,13 +148,13 @@
           canvas.height = img.height;
           ctx.drawImage(img, 0, 0);
 
-          // 가로 크기를 기존의 약 2/3 수준으로 축소 (가로 사진 31%, 세로 사진 46%)
+          // 가로 크기를 이전(31% / 46%)의 1.3배로 확대 (가로 사진 40%, 세로 사진 60%)
           const isLandscape = canvas.width >= canvas.height;
-          const boxWidth = isLandscape ? canvas.width * 0.31 : canvas.width * 0.46;
+          const boxWidth = isLandscape ? canvas.width * 0.40 : canvas.width * 0.60;
           const baseSize = isLandscape ? canvas.width : canvas.height;
           
-          // 축소된 박스 폭에 맞춰 글자 크기 및 여백 비례 조정
-          const fontSize = Math.max(14, Math.floor(baseSize * 0.012));
+          // 글자 크기 및 여백도 1.3배 비율에 맞춰 확대
+          const fontSize = Math.max(18, Math.floor(baseSize * 0.0156));
           const titleFontSize = Math.floor(fontSize * 1.25);
           const paddingX = fontSize * 0.6;
           const paddingY = fontSize * 0.5;
@@ -163,7 +163,6 @@
 
           const titleText = document.getElementById('titleText').value || '현장 점검 기록';
           
-          // 항목 순서: 세부위치 아래에 내용이 오도록 변경
           const rawRows = [
             { label: '시간', value: getFormattedDate() },
             { label: '주소', value: currentAddress },
@@ -184,8 +183,8 @@
           const totalRowsHeight = rows.reduce((sum, r) => sum + r.height, 0);
           const boxHeight = headerHeight + totalRowsHeight;
 
-          const startX = canvas.width * 0.015;
-          const startY = canvas.height - boxHeight - (canvas.height * 0.015);
+          const startX = canvas.width * 0.016;
+          const startY = canvas.height - boxHeight - (canvas.height * 0.016);
 
           // 반투명 배경
           ctx.fillStyle = "rgba(20, 25, 22, 0.38)";
@@ -193,12 +192,12 @@
 
           // 외곽 테두리
           ctx.strokeStyle = "rgba(110, 215, 135, 0.75)";
-          ctx.lineWidth = Math.max(1.5, baseSize * 0.0014);
+          ctx.lineWidth = Math.max(2, baseSize * 0.0018);
           ctx.strokeRect(startX, startY, boxWidth, boxHeight);
 
           // 텍스트 그림자
           ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-          ctx.shadowBlur = 3;
+          ctx.shadowBlur = 4;
           ctx.shadowOffsetX = 1;
           ctx.shadowOffsetY = 1;
 
@@ -217,7 +216,7 @@
           const dividerX = startX + col1Width;
 
           ctx.strokeStyle = "rgba(110, 215, 135, 0.5)";
-          ctx.lineWidth = Math.max(1, baseSize * 0.0009);
+          ctx.lineWidth = Math.max(1, baseSize * 0.001);
           ctx.beginPath();
           ctx.moveTo(dividerX, currentY);
           ctx.lineTo(dividerX, startY + boxHeight);
@@ -230,7 +229,7 @@
             ctx.stroke();
 
             ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
-            ctx.shadowBlur = 3;
+            ctx.shadowBlur = 4;
             ctx.shadowOffsetX = 1;
             ctx.shadowOffsetY = 1;
 
